@@ -1,0 +1,21 @@
+# Yocto/kas 构建产物与缓存
+build*/
+downloads/
+sstate-cache/
+tmp/
+image/out/
+
+# 镜像与索引产物(CI 产物,不入库)
+*.wic
+*.wic.zst
+*.bmap
+*.img
+index.json
+
+# 手工构建打包输出(scripts/kernel-package.sh)
+out/
+
+# 点文件/目录(.zcode 等工具与会话产物);例外见下
+.*
+!.gitignore
+!.gitmodules
