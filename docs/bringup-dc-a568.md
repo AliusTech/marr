@@ -22,6 +22,7 @@
 6. **上游 layer**:poky + meta-rockchip + meta-openembedded(kas 锁定);meta-ros 不进 bring-up。
 7. **首版镜像**:systemd + ssh + networkd + marr-release;ONNX Runtime 不进首启镜像。
 8. **烧录路径**:TF 卡槽在,SD 直写可用——本板三条路径(SD 直写 / maskrom USB / ums)全通,board.yml flash paths 记全集。
+9. **CAN(2026-09 定)**:USB 适配器走 candleLight/gs_usb 路线(Canable 2.0),fragment 已落 `config/kernel-can.cfg`(`CAN=y`、`CAN_RAW=y`、`CAN_GS_USB=m`,udev 热插拔自动加载);`CAN_ROCKCHIP` 不开。驱动器用经典 CAN 还是 CAN-FD 仍待定(影响适配器固件与波特率档)。
 
 ## 参考资料与获取
 
