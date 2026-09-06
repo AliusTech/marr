@@ -10,14 +10,15 @@
 
 **核心板侧(若 A568 = 该 SOM + 载板,则大概率沿用)**:PMIC RK809、vdd_cpu TCS4525(i2c0@0x1c)、eMMC = `&sdhci`、DDR 初始化(rkbin ddr v1.23)、bl31 v1.44。
 
-**载板侧(参照 EVB dts,A568 待逐项确认)**:
+**载板侧(DC-A568-V06 规格书 2025-07-11 已确认,PDF 在 `~/marr-materials/`)**:
 
-- 网口:gmac0/gmac1 = RGMII + RTL8211F(千兆),RGMII 延迟 gmac0 tx=0x3c/rx=0x2f、gmac1 tx=0x4f/rx=0x26,PHY 复位 GPIO2_D3/D1——**A568 产品页标"百兆",载板 PHY 可能不同,待原理图**;
-- CAN:SoC CAN1(can1m1 = GPIO4_C2/C3)EVB 已启用——**A568 载板是否焊收发器待确认**;
-- UART:调试 UART2(m0,1500000);UART3/4/5 = TTL/RS232/RS485 三路(m1),RS485 方向脚 GPIO3_A6——**对应关系与引出待确认(产品页称 3 TTL + 1 调试)**;
-- RTC:HYM8563 @ i2c5 0x51,中断 GPIO0_D3;
-- TF = `&sdmmc0`;USB Host 5V 使能 GPIO1_A4;mini-PCIe 3V3 GPIO3_A3、风扇 GPIO3_C4、功放 GPIO3_C5;
-- 厂商文档:<http://wikicn.gzdcsmt.com/wendang_id_59.html>(C568 家族)。
+- **网口:双路 10/100M 百兆**(RJ45 + 4P 座,百兆变压器 T±/R± 定义)——**与核心板 EVB 的千兆 RTL8211F/RGMII 是不同设计,移植时网口节点不可照抄核心板 dts**;PHY 芯片型号规格书未标,待安卓固件 dts 或原理图;
+- **串口映射(全定)**:调试 = UART2;串口 1 = ttyS1、串口 3 = ttyS3(两路共用一座,默认 TTL,可选贴 RS232);**串口 4 = ttyS4,默认 TTL,可选贴 RS485**——RS485 对应 uart4,非核心板 dts 暗示的 uart5;
+- **CAN:无**(规格书全文零提及)——A568 不引出 CAN,CAN 方案维持 USB 适配器(gs_usb),悬案关闭;
+- USB:5 Host + 1 OTG,**对外供电总上限 3A**(机器人供电预算需计入);
+- 存储:eMMC 8/16/32/64/128G 可选(本板 16G),LPDDR4X 1-8G,TF ≤128G;
+- GPIO(5 IO 座):GPIO1_A1(上拉默认)、GPIO3_A6(下拉选配)、GPIO3_A3(IO5)等;触摸/屏相关脚(GPIO0_B5/B6、GPIO4_C6)属显示域,随显示一起 disabled;
+- 厂商文档:<http://wikicn.gzdcsmt.com/wendang_id_59.html>(C568 家族)与产品页资料下载区(A568 规格书/固件/串口说明等 13 项)。
 
 ## 已定决策(bring-up 范围)
 
@@ -29,7 +30,7 @@
 6. **上游 layer**:poky + meta-rockchip + meta-openembedded(kas 锁定);meta-ros 不进 bring-up。
 7. **首版镜像**:systemd + ssh + networkd + marr-release;ONNX Runtime 不进首启镜像。
 8. **烧录路径**:TF 卡槽在,SD 直写可用——本板三条路径(SD 直写 / maskrom USB / ums)全通,board.yml flash paths 记全集。
-9. **CAN(2026-09,待重审)**:现行决定为 USB 适配器走 candleLight/gs_usb(fragment `config/kernel-can.cfg`),`CAN_ROCKCHIP` 不开。核心板 EVB dts 证实 SoC CAN1 可引出(can1m1 = GPIO4_C2/C3),**但 A568 载板是否焊收发器待确认**——若确认有,建议改"原生 CAN1 为主、USB 适配器仅调试",fragment 加 `CAN_ROCKCHIP=y`。驱动器经典 CAN / CAN-FD 之选仍悬而未决。
+9. **CAN(2026-09 定案)**:A568 规格书证实**本板无 CAN**;核心板 EVB 的 CAN1 引出与本板无关。方案维持:USB 适配器走 candleLight/gs_usb(fragment `config/kernel-can.cfg`),`CAN_ROCKCHIP` 不开。驱动器经典 CAN / CAN-FD 之选仍待驱动器侧确认(只影响适配器固件与波特率档)。
 
 ## 参考资料与获取(2026-09 已落地本机)
 
@@ -42,14 +43,11 @@
 
 ## 待确认(⚠ = 阻塞 A568 dts)
 
-- ⚠ **A568 一体板是否基于 C568 核心板**(板上有无 SOM,或为单板设计)——决定核心板侧事实能否沿用,问定昌或看板;
-- ⚠ **A568 专属资料**:规格书/原理图,或其 Android 固件包内的 dts(A568 是安卓一体板,定制 dts 大概率在安卓包里;注意 wiki 的 `ztl_c56x_11os` 安卓 SDK 也是 C56X 家族,非 A568);
-- ⚠ 载板 PHY 实际型号与路数(百兆/千兆);
-- ⚠ A568 载板 CAN1 是否焊收发器;
-- RS485 对应哪路 UART(方向脚 GPIO3_A6 亦待证实);
+- ⚠ **百兆 PHY 型号与接法**(RMII 还是 RGMII 降速)——规格书未标,途径:A568 安卓固件解包出 dts,或向定昌要原理图;
+- ⚠ 串口 1/3/4 的 pinctrl 引脚组(m1 还是 m0)——同样从安卓固件 dts 取;
+- A568 是否基于 MXM314 核心板(SOM)架构——影响 PMIC/DDR 等 SOM 侧事实沿用与否(不阻塞首启,影响电源管理节点);
 - maskrom VID/PID 实测(board.yml 用);
-- WiFi/BT 模组型号(已后置,不阻塞);
-- A568 专属 GPIO 命名表(规格书内)。
+- WiFi/BT 模组型号(已后置,不阻塞)。
 
 ## 验收标准(全部通过 = 移植完成)
 
