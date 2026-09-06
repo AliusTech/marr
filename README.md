@@ -5,7 +5,7 @@
 
 marr delivers motor intelligence learned in simulation to the "cerebellum" of real machines — the low-level motion-control hardware. This repository is the marr independent Linux distribution (Yocto/OE): it builds whole-disk GPT images for the industrial boards it supports. Flash the image, and the cerebellum is ready.
 
-- **Hardware**: no in-house boards — marr adapts and maintains industrial boards with a large installed base. Multiple SoC families are on the roadmap (one BSP layer per family). First board: Dingchang Electronics (gzdc) DC_A568, an RK3568 all-in-one board with 4 GB RAM + 16 GB eMMC.
+- **Hardware**: no in-house boards — marr adapts and maintains industrial boards with a large installed base. Multiple SoC families are on the roadmap (one BSP layer per family).
 - **Kernel**: latest upstream LTS, vendored as a git submodule (`kernel/`), zero fork. Board-level dts, kernel config fragments, and patches live under `boards/<vendor>/<model>/`.
 - **Runtime**: ONNX Runtime for policy inference — built from upstream source, pinned to a single distro-wide version (`meta-marr/conf/include/marr-versions.inc`), published via `index.json`.
 - **Comms**: ROS 2 + Cyclone DDS for brain ↔ cerebellum communication, version-pinned the same way.
