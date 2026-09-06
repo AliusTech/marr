@@ -1,0 +1,248 @@
+// SPDX-License-Identifier: (GPL-2.0+ OR MIT)
+/*
+ * marr distro board dts: 定昌电子 DC_A568 (vendor model "ztl, A568")
+ * RK3568 · 4GB LPDDR4X · 16GB eMMC · 工控一体板
+ *
+ * Scope: minimal bring-up set per docs/bringup-dc-a568.md —
+ *   eMMC / TF / UART2 console / UART3-5 / USB host+OTG /
+ *   GMAC1 RMII 100M / HYM8563 RTC. Display & audio: not supported.
+ *
+ * Facts ported from the vendor firmware dtb (decompiled,
+ * ~/workspace/marr-materials/a568/a568-vendor.dts) and the DC-A568-V06
+ * spec sheet:
+ *   - GMAC1 RMII muxed onto the GPIO2 pad group (gmac0_* pinctrl groups)
+ *     plus one custom pin (GPIO2_C1 func2, refclk); SoC outputs 50MHz
+ *   - PHY on mdio1 bus, address 1, reset GPIO2_D3 (active-low)
+ *   - vcc5v0_host enable GPIO0_A6 / vcc5v0_otg enable GPIO0_A5
+ *   - HYM8563 RTC on i2c5@0x51, irq GPIO0_D3
+ *   - vccio1/4/5/7 + pmuio2 = 3v3, vccio3/6 = 1v8
+ *
+ * TODO after first boot:
+ *   - RK809 PMIC regulator tree (fixed placeholders below only keep
+ *     the voltages the bootloader has already set)
+ *   - RS485 (uart4) direction GPIO3_A6 once the stuffing option is confirmed
+ *   - USB port-to-controller mapping to be confirmed on hardware
+ */
+
+/dts-v1/;
+#include <dt-bindings/clock/rk3568-cru.h>
+#include <dt-bindings/gpio/gpio.h>
+#include <dt-bindings/interrupt-controller/irq.h>
+#include <dt-bindings/pinctrl/rockchip.h>
+#include "rk3568.dtsi"
+
+/ {
+	model = "Dingchang DC_A568";
+	compatible = "gzdc,dc-a568", "rockchip,rk3568";
+
+	aliases {
+		ethernet0 = &gmac1;
+		mmc0 = &sdmmc0;
+		mmc1 = &sdhci;
+		serial2 = &uart2;
+	};
+
+	chosen {
+		stdout-path = "serial2:1500000n8";
+	};
+
+	/* 固定占位电源:首启沿用 bootloader 已设电压,RK809 树落地后替换 */
+	vcc3v3_sys: vcc3v3-sys-regulator {
+		compatible = "regulator-fixed";
+		regulator-name = "vcc3v3_sys";
+		regulator-always-on;
+		regulator-boot-on;
+		regulator-min-microvolt = <3300000>;
+		regulator-max-microvolt = <3300000>;
+	};
+
+	vcc1v8_sys: vcc1v8-sys-regulator {
+		compatible = "regulator-fixed";
+		regulator-name = "vcc1v8_sys";
+		regulator-always-on;
+		regulator-boot-on;
+		regulator-min-microvolt = <1800000>;
+		regulator-max-microvolt = <1800000>;
+	};
+
+	vcc5v0_host: vcc5v0-host-regulator {
+		compatible = "regulator-fixed";
+		regulator-name = "vcc5v0_host";
+		regulator-boot-on;
+		enable-active-high;
+		gpio = <&gpio0 RK_PA6 GPIO_ACTIVE_HIGH>;
+		pinctrl-names = "default";
+		pinctrl-0 = <&vcc5v0_host_en>;
+		vin-supply = <&vcc3v3_sys>;
+	};
+
+	vcc5v0_otg: vcc5v0-otg-regulator {
+		compatible = "regulator-fixed";
+		regulator-name = "vcc5v0_otg";
+		regulator-boot-on;
+		enable-active-high;
+		gpio = <&gpio0 RK_PA5 GPIO_ACTIVE_HIGH>;
+		pinctrl-names = "default";
+		pinctrl-0 = <&vcc5v0_otg_en>;
+		vin-supply = <&vcc3v3_sys>;
+	};
+};
+
+&gmac1 {
+	assigned-clocks = <&cru SCLK_GMAC1_RX_TX>;
+	assigned-clock-parents = <&cru SCLK_GMAC1_RMII_SPEED>;
+	clock_in_out = "output";
+	phy-handle = <&rmii_phy>;
+	phy-mode = "rmii";
+	pinctrl-names = "default";
+	/* RMII 复用到 GPIO2 pad 组(与厂商固件一致,组名是 gmac0_*) */
+	pinctrl-0 = <&gmac0_miim
+		     &gmac0_clkinout
+		     &gmac0_rx_bus2
+		     &gmac0_tx_bus2
+		     &eth0_pins>;
+	status = "okay";
+};
+
+&mdio1 {
+	rmii_phy: ethernet-phy@1 {
+		compatible = "ethernet-phy-ieee802.3-c22";
+		reg = <0x1>;
+		reset-assert-us = <20000>;
+		reset-deassert-us = <100000>;
+		reset-gpios = <&gpio2 RK_PD3 GPIO_ACTIVE_LOW>;
+	};
+};
+
+&i2c5 {
+	status = "okay";
+
+	hym8563: rtc@51 {
+		compatible = "haoyu,hym8563";
+		reg = <0x51>;
+		#clock-cells = <0>;
+		interrupt-parent = <&gpio0>;
+		interrupts = <RK_PD3 IRQ_TYPE_LEVEL_LOW>;
+		pinctrl-names = "default";
+		pinctrl-0 = <&rtc_int>;
+		wakeup-source;
+	};
+};
+
+&sdhci {
+	bus-width = <8>;
+	non-removable;
+	vmmc-supply = <&vcc3v3_sys>;
+	vqmmc-supply = <&vcc1v8_sys>;
+	status = "okay";
+};
+
+&sdmmc0 {
+	bus-width = <4>;
+	cap-sd-highspeed;
+	disable-wp;
+	broken-cd;
+	max-frequency = <150000000>;
+	pinctrl-names = "default";
+	pinctrl-0 = <&sdmmc0_bus4 &sdmmc0_clk &sdmmc0_cmd>;
+	vmmc-supply = <&vcc3v3_sys>;
+	vqmmc-supply = <&vcc3v3_sys>;
+	status = "okay";
+};
+
+&uart2 {
+	pinctrl-names = "default";
+	pinctrl-0 = <&uart2m0_xfer>;
+	status = "okay";
+};
+
+&uart3 {
+	pinctrl-names = "default";
+	pinctrl-0 = <&uart3m1_xfer>;
+	status = "okay";
+};
+
+&uart4 {
+	pinctrl-names = "default";
+	pinctrl-0 = <&uart4m1_xfer>;
+	status = "okay";
+};
+
+&uart5 {
+	pinctrl-names = "default";
+	pinctrl-0 = <&uart5m1_xfer>;
+	status = "okay";
+};
+
+&pmu_io_domains {
+	status = "okay";
+	pmuio2-supply = <&vcc3v3_sys>;
+	vccio1-supply = <&vcc3v3_sys>;
+	vccio3-supply = <&vcc1v8_sys>;
+	vccio4-supply = <&vcc3v3_sys>;
+	vccio5-supply = <&vcc3v3_sys>;
+	vccio6-supply = <&vcc1v8_sys>;
+	vccio7-supply = <&vcc3v3_sys>;
+};
+
+&usb2phy0_host {
+	phy-supply = <&vcc5v0_host>;
+	status = "okay";
+};
+
+&usb2phy0_otg {
+	status = "okay";
+};
+
+&usb2phy1_host {
+	phy-supply = <&vcc5v0_host>;
+	status = "okay";
+};
+
+&usb2phy1_otg {
+	status = "okay";
+};
+
+&usb_host0_ehci {
+	status = "okay";
+};
+
+&usb_host0_ohci {
+	status = "okay";
+};
+
+&usb_host1_ehci {
+	status = "okay";
+};
+
+&usb_host1_ohci {
+	status = "okay";
+};
+
+&usb_host0_xhci {
+	status = "okay";
+};
+
+&pinctrl {
+	eth0 {
+		eth0_pins: eth0-pins {
+			rockchip,pins = <2 RK_PC1 2 &pcfg_pull_none>;
+		};
+	};
+
+	usb {
+		vcc5v0_host_en: vcc5v0-host-en {
+			rockchip,pins = <0 RK_PA6 RK_FUNC_GPIO &pcfg_pull_none>;
+		};
+
+		vcc5v0_otg_en: vcc5v0-otg-en {
+			rockchip,pins = <0 RK_PA5 RK_FUNC_GPIO &pcfg_pull_none>;
+		};
+	};
+
+	rtc {
+		rtc_int: rtc-int {
+			rockchip,pins = <0 RK_PD3 RK_FUNC_GPIO &pcfg_pull_up>;
+		};
+	};
+};
