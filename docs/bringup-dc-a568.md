@@ -10,7 +10,7 @@
 
 **核心板侧(若 A568 = 该 SOM + 载板,则大概率沿用)**:PMIC RK809、vdd_cpu TCS4525(i2c0@0x1c)、eMMC = `&sdhci`、DDR 初始化(rkbin ddr v1.23)、bl31 v1.44。
 
-**载板侧(DC-A568-V06 规格书 + A568 出厂 Ubuntu 固件 dtb 反编译,双双落地 `~/marr-materials/`)**:
+**载板侧(DC-A568-V06 规格书 + A568 出厂 Ubuntu 固件 dtb 反编译,双双落地 `~/workspace/marr-materials/a568/`)**:
 
 - **网口(固件 dts 定案)**:**gmac1 = RMII 百兆,phy@1(MDIO 地址 0x1),SoC 输出 50MHz 参考时钟**,通用 `ethernet-phy-ieee802.3-c22` 绑定(型号厂商未写死,MDIO 自动探测;上机 `ethtool` 实测可得名);gmac0(RGMII)在本板 disabled——核心板 EVB 的千兆 RGMII 参数对本板无效;两个物理口(RJ45/4P)与 MAC 的对应待上机验证;
 - **UART(固件 dts 定案)**:uart3/4/5 = okay(对外三路,Linux 节点 ttyS3/S4/S5);**RS485 = uart4/ttyS4**(规格书);uart1 disabled;uart2 为厂商 fiq-debugger 控制台(主线移植改用标准 8250 console,1500000);
@@ -18,7 +18,7 @@
 - USB:5 Host + 1 OTG,**对外供电总上限 3A**(机器人供电预算需计入);
 - 存储:eMMC 8/16/32/64/128G 可选(本板 16G),LPDDR4X 1-8G,TF ≤128G;RTC HYM8563 @ i2c5 0x51(dts 确认);
 - GPIO(5 IO 座):GPIO1_A1(上拉默认)、GPIO3_A6(下拉选配)、GPIO3_A3(IO5)等;触摸/屏相关脚(GPIO0_B5/B6、GPIO4_C6)属显示域,随显示一起 disabled;
-- **dts 移植基准**:以固件内 `ztl, A568` dtb 的反编译源(`~/marr-materials/a568-dtbs/dtb_00_187675.dts`)为准抄 pinmux/时钟/复位——源级 dts 在厂商内部,我们 SDK 里的 `ztl-YM568-linux.dts` 仅是同家族核心板版,只能参照不可照抄(网口/串口已证实不同);
+- **dts 移植基准**:以固件内 `ztl, A568` dtb 的反编译源(`~/workspace/marr-materials/a568/a568-vendor.dts`)为准抄 pinmux/时钟/复位——源级 dts 在厂商内部,我们 SDK 里的 `ztl-YM568-linux.dts` 仅是同家族核心板版,只能参照不可照抄(网口/串口已证实不同);
 - 固件:`GB-RK3568-ubuntu22.04-20260715-...img`(RKFW 格式,9 个 568 家族变体 dtb 超集)兼作 bring-up 任务 0 的"厂商镜像点亮"素材;
 - 厂商文档:<http://wikicn.gzdcsmt.com/wendang_id_59.html>(C568 家族)与产品页资料下载区(A568 规格书/固件/串口说明等 13 项)。
 
@@ -36,9 +36,9 @@
 
 ## 参考资料与获取(2026-09 已落地本机)
 
-- **厂商 Linux SDK** 已解压至本机 `~/rk356x-sdk/`(20G,vendor 内核 5.10.226 / U-Boot 2017.09,单提交 rk3568 first commit 20250808)。pinmux 移植参照:`kernel/arch/arm64/boot/dts/rockchip/ztl-YM568-linux.dts`,include 链 `rk3568-evb8-lp4-v10.dtsi → rk3568-evb1-ddr4-v10.dtsi → rk3568-linux.dtsi`;RGMII 延迟、PHY 复位、UART/CAN/RTC 引脚均在上链中,逐条抄录。
-- **rkbin blob**(idbloader 组装用):`~/rk356x-sdk/rkbin/bin/rk35/`——`rk3568_ddr_*_MHz_v1.23.bin`、miniloader、`bl31_v1.44.elf`、`bl32_v2.15.bin`。
-- **分区表参考**(厂商 A/B 方案):`~/rk356x-sdk/device/rockchip/.chips/rk3566_rk3568/parameter-buildroot-fit-ab.txt`,对照我们的 wic 布局。
+- **厂商 Linux SDK** 已解压至本机 `~/workspace/marr-materials/rk356x-sdk/`(20G,vendor 内核 5.10.226 / U-Boot 2017.09,单提交 rk3568 first commit 20250808)。pinmux 移植参照:`kernel/arch/arm64/boot/dts/rockchip/ztl-YM568-linux.dts`,include 链 `rk3568-evb8-lp4-v10.dtsi → rk3568-evb1-ddr4-v10.dtsi → rk3568-linux.dtsi`;RGMII 延迟、PHY 复位、UART/CAN/RTC 引脚均在上链中,逐条抄录。
+- **rkbin blob**(idbloader 组装用):`~/workspace/marr-materials/rk356x-sdk/rkbin/bin/rk35/`——`rk3568_ddr_*_MHz_v1.23.bin`、miniloader、`bl31_v1.44.elf`、`bl32_v2.15.bin`。
+- **分区表参考**(厂商 A/B 方案):`~/workspace/marr-materials/rk356x-sdk/device/rockchip/.chips/rk3566_rk3568/parameter-buildroot-fit-ab.txt`,对照我们的 wic 布局。
 - **硬件资料**(规格书/原理图):wiki"5. 硬件资料"(提取码 ivc6)——确认 GPIO 引出表、RS485 具体挂在哪路 UART、CAN1 引到哪个连接器。
 - **Android 11 SDK**(4.19 内核):未获取,仅在 Linux SDK 信息缺失时再取。
 - **厂商预编译镜像 + RKDevTool**:先走通一次厂商镜像的 maskrom 烧录,验证板卡硬件与烧录链路,再上自己的镜像。
