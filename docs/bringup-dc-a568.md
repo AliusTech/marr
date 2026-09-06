@@ -10,14 +10,16 @@
 
 **核心板侧(若 A568 = 该 SOM + 载板,则大概率沿用)**:PMIC RK809、vdd_cpu TCS4525(i2c0@0x1c)、eMMC = `&sdhci`、DDR 初始化(rkbin ddr v1.23)、bl31 v1.44。
 
-**载板侧(DC-A568-V06 规格书 2025-07-11 已确认,PDF 在 `~/marr-materials/`)**:
+**载板侧(DC-A568-V06 规格书 + A568 出厂 Ubuntu 固件 dtb 反编译,双双落地 `~/marr-materials/`)**:
 
-- **网口:双路 10/100M 百兆**(RJ45 + 4P 座,百兆变压器 T±/R± 定义)——**与核心板 EVB 的千兆 RTL8211F/RGMII 是不同设计,移植时网口节点不可照抄核心板 dts**;PHY 芯片型号规格书未标,待安卓固件 dts 或原理图;
-- **串口映射(全定)**:调试 = UART2;串口 1 = ttyS1、串口 3 = ttyS3(两路共用一座,默认 TTL,可选贴 RS232);**串口 4 = ttyS4,默认 TTL,可选贴 RS485**——RS485 对应 uart4,非核心板 dts 暗示的 uart5;
-- **CAN:无**(规格书全文零提及)——A568 不引出 CAN,CAN 方案维持 USB 适配器(gs_usb),悬案关闭;
+- **网口(固件 dts 定案)**:**gmac1 = RMII 百兆,phy@1(MDIO 地址 0x1),SoC 输出 50MHz 参考时钟**,通用 `ethernet-phy-ieee802.3-c22` 绑定(型号厂商未写死,MDIO 自动探测;上机 `ethtool` 实测可得名);gmac0(RGMII)在本板 disabled——核心板 EVB 的千兆 RGMII 参数对本板无效;两个物理口(RJ45/4P)与 MAC 的对应待上机验证;
+- **UART(固件 dts 定案)**:uart3/4/5 = okay(对外三路,Linux 节点 ttyS3/S4/S5);**RS485 = uart4/ttyS4**(规格书);uart1 disabled;uart2 为厂商 fiq-debugger 控制台(主线移植改用标准 8250 console,1500000);
+- **CAN:本板无**(规格书零提及,dts 三个 SoC CAN 节点全部不启用;注:RK3568 CAN 为 2.0 非 FD,未来原生 CAN 板注意)——CAN 方案维持 USB 适配器(gs_usb);
 - USB:5 Host + 1 OTG,**对外供电总上限 3A**(机器人供电预算需计入);
-- 存储:eMMC 8/16/32/64/128G 可选(本板 16G),LPDDR4X 1-8G,TF ≤128G;
+- 存储:eMMC 8/16/32/64/128G 可选(本板 16G),LPDDR4X 1-8G,TF ≤128G;RTC HYM8563 @ i2c5 0x51(dts 确认);
 - GPIO(5 IO 座):GPIO1_A1(上拉默认)、GPIO3_A6(下拉选配)、GPIO3_A3(IO5)等;触摸/屏相关脚(GPIO0_B5/B6、GPIO4_C6)属显示域,随显示一起 disabled;
+- **dts 移植基准**:以固件内 `ztl, A568` dtb 的反编译源(`~/marr-materials/a568-dtbs/dtb_00_187675.dts`)为准抄 pinmux/时钟/复位——源级 dts 在厂商内部,我们 SDK 里的 `ztl-YM568-linux.dts` 仅是同家族核心板版,只能参照不可照抄(网口/串口已证实不同);
+- 固件:`GB-RK3568-ubuntu22.04-20260715-...img`(RKFW 格式,9 个 568 家族变体 dtb 超集)兼作 bring-up 任务 0 的"厂商镜像点亮"素材;
 - 厂商文档:<http://wikicn.gzdcsmt.com/wendang_id_59.html>(C568 家族)与产品页资料下载区(A568 规格书/固件/串口说明等 13 项)。
 
 ## 已定决策(bring-up 范围)
@@ -41,12 +43,12 @@
 - **Android 11 SDK**(4.19 内核):未获取,仅在 Linux SDK 信息缺失时再取。
 - **厂商预编译镜像 + RKDevTool**:先走通一次厂商镜像的 maskrom 烧录,验证板卡硬件与烧录链路,再上自己的镜像。
 
-## 待确认(⚠ = 阻塞 A568 dts)
+## 待确认(⚠ 已全清,以下为上机实测项)
 
-- ⚠ **百兆 PHY 型号与接法**(RMII 还是 RGMII 降速)——规格书未标,途径:A568 安卓固件解包出 dts,或向定昌要原理图;
-- ⚠ 串口 1/3/4 的 pinctrl 引脚组(m1 还是 m0)——同样从安卓固件 dts 取;
-- A568 是否基于 MXM314 核心板(SOM)架构——影响 PMIC/DDR 等 SOM 侧事实沿用与否(不阻塞首启,影响电源管理节点);
 - maskrom VID/PID 实测(board.yml 用);
+- PHY 具体型号(`ethtool` 上机一读即知,不阻塞——绑定与地址已定);
+- 两个物理网口(RJ45/4P)与 MAC 的对应关系;
+- A568 是否 MXM314 SOM 架构(影响电源管理节点细节,不阻塞首启);
 - WiFi/BT 模组型号(已后置,不阻塞)。
 
 ## 验收标准(全部通过 = 移植完成)
