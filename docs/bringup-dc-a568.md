@@ -4,13 +4,16 @@
 
 ## 板卡事实
 
-定昌电子(与智通利为同一家公司)DC_A568,RK3568(4×A55),4GB 内存 + 16GB eMMC,DC 12V 供电。
+定昌电子(与智通利为同一家公司)DC_A568(厂商内部代号 YM568/Y568),RK3568(4×A55),4GB 内存 + 16GB eMMC,DC 12V 供电。以下事实已由厂商 SDK dts(`ztl-YM568-linux.dts`)证实:
 
-- **USB**:6 口 = 5 Host(1×USB3.0 标准座 + 4×2.0mm-4P 座,HUB 扩展)+ 1 OTG(烧录/调试);
-- **UART**:4 路 = 3 路 TTL(2 路可改 RS232、1 路可改 RS485,选配)+ 1 路 TTL 调试串口;
-- **网**:2× 百兆(RJ45 + 4P 座);板载 WiFi/BT;
-- **其他**:1×I2C、5×GPIO、RTC(HYM8563,I2C 地址 0x51)、硬件看门狗、**TF 卡槽**、mini-PCIe;
-- 厂商文档:<http://wikicn.gzdcsmt.com/wendang_id_59.html>(RK3568 家族:UART/RTC/GPIO/PWM/Watchdog/CAN 各外设指南 + SDK/硬件资料下载)。
+- **USB**:6 口 = 5 Host(1×USB3.0 标准座 + 4×2.0mm-4P 座,HUB 扩展)+ 1 OTG(烧录/调试);Host 5V 使能脚 GPIO1_A4;
+- **UART**:调试口 UART2(m0 引脚,1500000);**UART3/4/5 = 对外的 TTL/RS232/RS485 三路**(均 m1 引脚),RS485 方向控制脚 GPIO3_A6(高有效);
+- **网**:**双千兆**——gmac0/gmac1 均为 RGMII + **RTL8211F**,板级 RGMII 延迟 gmac0 tx=0x3c/rx=0x2f、gmac1 tx=0x4f/rx=0x26,PHY 复位脚 GPIO2_D3/D1(产品页"百兆"为误标,待实测确认);WiFi 为 SDIO 接法(模组型号 dts 未标,已后置);
+- **CAN**:**SoC CAN1 已引出且厂商 dts 启用**(can1m1 引脚 = GPIO4_C2/C3 复用 3)——产品页未列此接口;
+- **存储**:eMMC = `&sdhci`,TF = `&sdmmc0`(evb 基线默认使能);
+- **RTC**:HYM8563 挂 **i2c5**,地址 0x51,中断脚 GPIO0_D3;PMIC 为 RK809,vdd_cpu 走 TCS4525(i2c0);
+- **其他**:mini-PCIe 3V3 使能 GPIO3_A3、风扇 5V GPIO3_C4、功放 GPIO3_C5;
+- 厂商文档:<http://wikicn.gzdcsmt.com/wendang_id_59.html>(RK3568 家族外设指南 + SDK/硬件资料下载)。
 
 ## 已定决策(bring-up 范围)
 
@@ -22,22 +25,24 @@
 6. **上游 layer**:poky + meta-rockchip + meta-openembedded(kas 锁定);meta-ros 不进 bring-up。
 7. **首版镜像**:systemd + ssh + networkd + marr-release;ONNX Runtime 不进首启镜像。
 8. **烧录路径**:TF 卡槽在,SD 直写可用——本板三条路径(SD 直写 / maskrom USB / ums)全通,board.yml flash paths 记全集。
-9. **CAN(2026-09 定)**:USB 适配器走 candleLight/gs_usb 路线(Canable 2.0),fragment 已落 `config/kernel-can.cfg`(`CAN=y`、`CAN_RAW=y`、`CAN_GS_USB=m`,udev 热插拔自动加载);`CAN_ROCKCHIP` 不开。驱动器用经典 CAN 还是 CAN-FD 仍待定(影响适配器固件与波特率档)。
+9. **CAN(2026-09,SDK 勘察后待重审)**:现行决定为 USB 适配器走 candleLight/gs_usb(fragment `config/kernel-can.cfg`),`CAN_ROCKCHIP` 不开。**但厂商 dts 证实 SoC CAN1 已引出并启用**(can1m1 = GPIO4_C2/C3)——原生 CAN 零成本可得,是否改为"原生 CAN1 为主、USB 适配器仅调试用"待重拍板;若改,fragment 加 `CAN_ROCKCHIP=y`。驱动器经典 CAN / CAN-FD 之选仍悬而未决。
 
-## 参考资料与获取
+## 参考资料与获取(2026-09 已落地本机)
 
-- **厂商 Linux SDK**(rk356x,vendor 内核):pinmux 与 dts 的移植参照,重点抄 `arch/arm64/boot/dts/rockchip/` 下 ztl 定制 dts 的 pinmux/节点使能。入口:wiki"开源的 Linux SDK 编译开发指南"(百度盘,提取码 wi46)。
-- **硬件资料**(规格书/原理图):wiki"5. 硬件资料"(提取码 ivc6)——**bring-up 前必读**,确认 PHY 型号、GMAC 路数、WiFi 模组、A568 专属 GPIO 分配表。
-- **Android 11 SDK**(4.19 内核):不用于移植,仅在 Linux SDK 信息缺失时对照。
+- **厂商 Linux SDK** 已解压至本机 `~/rk356x-sdk/`(20G,vendor 内核 5.10.226 / U-Boot 2017.09,单提交 rk3568 first commit 20250808)。pinmux 移植参照:`kernel/arch/arm64/boot/dts/rockchip/ztl-YM568-linux.dts`,include 链 `rk3568-evb8-lp4-v10.dtsi → rk3568-evb1-ddr4-v10.dtsi → rk3568-linux.dtsi`;RGMII 延迟、PHY 复位、UART/CAN/RTC 引脚均在上链中,逐条抄录。
+- **rkbin blob**(idbloader 组装用):`~/rk356x-sdk/rkbin/bin/rk35/`——`rk3568_ddr_*_MHz_v1.23.bin`、miniloader、`bl31_v1.44.elf`、`bl32_v2.15.bin`。
+- **分区表参考**(厂商 A/B 方案):`~/rk356x-sdk/device/rockchip/.chips/rk3566_rk3568/parameter-buildroot-fit-ab.txt`,对照我们的 wic 布局。
+- **硬件资料**(规格书/原理图):wiki"5. 硬件资料"(提取码 ivc6)——确认 GPIO 引出表、RS485 具体挂在哪路 UART、CAN1 引到哪个连接器。
+- **Android 11 SDK**(4.19 内核):未获取,仅在 Linux SDK 信息缺失时再取。
 - **厂商预编译镜像 + RKDevTool**:先走通一次厂商镜像的 maskrom 烧录,验证板卡硬件与烧录链路,再上自己的镜像。
 
-## 待确认(⚠ = 阻塞 dts)
+## 待确认(⚠ 已清,以下为实测项)
 
-- ⚠ 百兆 PHY 型号与 GMAC 路数(网口节点必需)——硬件资料包 / Linux SDK dts;
-- ⚠ A568 是否引出 CAN(家族文档有 CAN 指南,但 A568 产品页未列;与 CAN 适配器决策一起处理);
-- WiFi/BT 模组型号(已后置,不阻塞);
-- RS485 选配状态(随 CAN 决策);
 - maskrom VID/PID 实测(board.yml 用);
+- RS485 具体对应哪路 UART(dts 只有方向脚 GPIO3_A6,推测 uart5,原理图确认);
+- CAN1 引到哪个连接器、收发器型号(原理图确认);
+- 双千兆实测吞吐(芯片级 RTL8211F 已确认,排除变压器降级);
+- WiFi/BT 模组型号(dts 未标;已后置,不阻塞);
 - A568 专属 GPIO 命名表(规格书内)。
 
 ## 验收标准(全部通过 = 移植完成)
